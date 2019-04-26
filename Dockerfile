@@ -1,13 +1,15 @@
-FROM alpine:3.9
+FROM debian:stretch
 
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
+      netbase \
       iptables \
-      ip6tables \
       ipset \
       iproute2 \
       ipvsadm \
-      conntrack-tools \
+      conntrack \
       curl \
+      kmod \
+      strace \
       bash && \
     mkdir -p /var/lib/gobgp && \
     mkdir -p /usr/local/share/bash-completion && \
