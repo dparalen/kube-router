@@ -311,7 +311,7 @@ func (fsm *FSM) StateChange(nextState bgp.FSMState) {
 		"old":    fsm.state.String(),
 		"new":    nextState.String(),
 		"reason": fsm.reason,
-	}).Debug("state changed")
+	}).Info("state changed")
 	fsm.state = nextState
 	switch nextState {
 	case bgp.BGP_FSM_ESTABLISHED:
@@ -449,7 +449,7 @@ func (fsm *FSM) connectLoop() error {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.State.NeighborAddress,
-			}).Debugf("failed to connect: %s", err)
+			}).Infof("failed to connect: %s", err)
 		}
 
 		if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
@@ -463,7 +463,7 @@ func (fsm *FSM) connectLoop() error {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.State.NeighborAddress,
-			}).Debug("stop connect loop")
+			}).Info("stop connect loop")
 			return nil
 		case <-timer.C:
 			if fsm.state == bgp.BGP_FSM_ACTIVE && !fsm.pConf.GracefulRestart.State.PeerRestarting {
@@ -535,12 +535,12 @@ func (h *FSMHandler) idle() (bgp.FSMState, *FsmStateReason) {
 					"Topic":    "Peer",
 					"Key":      fsm.pConf.State.NeighborAddress,
 					"Duration": fsm.idleHoldTime,
-				}).Debug("IdleHoldTimer expired")
+				}).Info("IdleHoldTimer expired")
 				fsm.idleHoldTime = HOLDTIME_IDLE
 				return bgp.BGP_FSM_ACTIVE, NewFsmStateReason(FSM_IDLE_HOLD_TIMER_EXPIRED, nil, nil)
 
 			} else {
-				log.WithFields(log.Fields{"Topic": "Peer"}).Debug("IdleHoldTimer expired, but stay at idle because the admin state is DOWN")
+				log.WithFields(log.Fields{"Topic": "Peer"}).Info("IdleHoldTimer expired, but stay at idle because the admin state is DOWN")
 			}
 
 		case stateOp := <-fsm.adminStateCh:
@@ -1238,7 +1238,7 @@ func (h *FSMHandler) opensent() (bgp.FSMState, *FsmStateReason) {
 								"Topic": "Peer",
 								"Key":   fsm.pConf.State.NeighborAddress,
 								"State": fsm.state.String(),
-							}).Debug("peer has restarted, skipping wait for EOR")
+							}).Info("peer has restarted, skipping wait for EOR")
 							for i := range fsm.pConf.AfiSafis {
 								fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
 							}
@@ -1435,7 +1435,7 @@ func (h *FSMHandler) sendMessageloop() error {
 				"Key":   fsm.pConf.State.NeighborAddress,
 				"State": fsm.state.String(),
 				"Data":  m,
-			}).Debug("update for 2byte AS peer")
+			}).Info("update for 2byte AS peer")
 			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
 			table.UpdatePathAggregator2ByteAs(m.Body.(*bgp.BGPUpdate))
 		}
@@ -1505,14 +1505,14 @@ func (h *FSMHandler) sendMessageloop() error {
 				"nlri":        update.NLRI,
 				"withdrawals": update.WithdrawnRoutes,
 				"attributes":  update.PathAttributes,
-			}).Debug("sent update")
+			}).Info("sent update")
 		default:
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
 				"Key":   fsm.pConf.State.NeighborAddress,
 				"State": fsm.state.String(),
 				"data":  m,
-			}).Debug("sent")
+			}).Info("sent")
 		}
 		return nil
 	}
@@ -1713,7 +1713,7 @@ func (h *FSMHandler) changeAdminState(s AdminState) error {
 			"Key":        fsm.pConf.State.NeighborAddress,
 			"State":      fsm.state.String(),
 			"AdminState": s.String(),
-		}).Debug("admin state changed")
+		}).Info("admin state changed")
 
 		fsm.adminState = s
 		fsm.pConf.State.AdminDown = !fsm.pConf.State.AdminDown
