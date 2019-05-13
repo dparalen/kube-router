@@ -341,20 +341,25 @@ func (nrc *NetworkRoutingController) watchBgpUpdates() {
 	for {
 		select {
 		case ev := <-watcher.Event():
+            glog.V(3).Infof("Received event: %v", ev)
 			switch msg := ev.(type) {
 			case *gobgp.WatchEventBestPath:
 				glog.V(3).Info("Processing bgp route advertisement from peer")
 				if nrc.MetricsEnabled {
 					metrics.ControllerBGPadvertisementsReceived.Inc()
 				}
+                glog.V(3).Infof("Received peer route advertisement message: %v", msg)
 				for _, path := range msg.PathList {
+                    glog.V(3).Infof("Processing bgp route path: %v", path)
 					if path.IsLocal() {
+                        glog.V(3).Infof("Skipping local bgp route path: %v", path)
 						continue
 					}
 					if err := nrc.injectRoute(path); err != nil {
 						glog.Errorf("Failed to inject routes due to: " + err.Error())
 						continue
 					}
+                    glog.V(3).Infof("Successfully processed bgp route path: %v", path)
 				}
 			}
 		}
@@ -367,8 +372,10 @@ func (nrc *NetworkRoutingController) advertisePodRoute() error {
 	}
 	cidr, err := utils.GetPodCidrFromNodeSpec(nrc.clientset, nrc.hostnameOverride)
 	if err != nil {
+        glog.Errorf("Failed to get pod cidr from node spec: %v: %v: %v", nrc.clientset, nrc.hostnameOverride, err)
 		return err
 	}
+    glog.V(3).Infof("About to advertise Pod CIDR: %v", cidr)
 
 	cidrStr := strings.Split(cidr, "/")
 	subnet := cidrStr[0]
@@ -399,6 +406,7 @@ func (nrc *NetworkRoutingController) advertisePodRoute() error {
 
 		if _, err := nrc.bgpServer.AddPath("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(uint8(cidrLen),
 			subnet), false, attrs, time.Now(), false)}); err != nil {
+            glog.Errorf("Failed to advertise Pod CIDR %v to the peers due to %v", cidr, err)
 			return fmt.Errorf(err.Error())
 		}
 	}
@@ -414,6 +422,7 @@ func (nrc *NetworkRoutingController) injectRoute(path *table.Path) error {
 	tunnelName := generateTunnelName(nexthop.String())
 	sameSubnet := nrc.nodeSubnet.Contains(nexthop)
 
+    glog.V(3).Infof("Injecting route dst: %v, next hop: %v, tunnel name: %v", dst, nexthop, tunnelName)
 	// cleanup route and tunnel if overlay is disabled or node is in same subnet and overlay-type is set to 'subnet'
 	if !nrc.enableOverlays || (sameSubnet && nrc.overlayType == "subnet") {
 		glog.Infof("Cleaning up old routes if there are any")
@@ -746,6 +755,8 @@ func (nrc *NetworkRoutingController) startBgpServer() error {
 			Port:             int32(nrc.bgpPort),
 		},
 	}
+
+    glog.V(3).Infof("Starting BGP server with config: %v", global)
 
 	if err := nrc.bgpServer.Start(global); err != nil {
 		return errors.New("Failed to start BGP server due to : " + err.Error())

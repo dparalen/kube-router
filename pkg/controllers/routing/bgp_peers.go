@@ -45,19 +45,23 @@ func (nrc *NetworkRoutingController) syncInternalPeers() {
 	if nrc.MetricsEnabled {
 		metrics.ControllerBPGpeers.Set(float64(len(nodes.Items)))
 	}
+	glog.V(3).Infof("Syncing internal BGP peers: %v", nodes)
 	// establish peer and add Pod CIDRs with current set of nodes
 	currentNodes := make([]string, 0)
 	for _, node := range nodes.Items {
 		nodeIP, _ := utils.GetNodeIP(&node)
 
+		glog.V(3).Infof("Syncing internal BGP peer: %v", nodeIP)
 		// skip self
 		if nodeIP.String() == nrc.nodeIP.String() {
+			glog.V(3).Infof("Skipping self@%v", nodeIP)
 			continue
 		}
 
 		// we are rr-client peer only with rr-server
 		if nrc.bgpRRClient {
 			if _, ok := node.ObjectMeta.Annotations[rrServerAnnotation]; !ok {
+				glog.V(3).Infof("Skipping rr-client @%v", nodeIP)
 				continue
 			}
 		}
@@ -81,7 +85,7 @@ func (nrc *NetworkRoutingController) syncInternalPeers() {
 
 			// if the nodes ASN number is different from ASN number of current node skip peering
 			if nrc.nodeAsnNumber != uint32(asnNo) {
-				glog.Infof("Not peering with the Node %s as ASN number of the node is different.",
+				glog.Infof("Not peering with the internal Node %s as ASN number of the node is different.",
 					nodeIP.String())
 				continue
 			}
@@ -155,9 +159,12 @@ func (nrc *NetworkRoutingController) syncInternalPeers() {
 		}
 
 		// TODO: check if a node is alredy added as nieighbour in a better way than add and catch error
+		glog.V(3).Infof("Adding an iBGP neighbor node %v", n)
 		if err := nrc.bgpServer.AddNeighbor(n); err != nil {
 			if !strings.Contains(err.Error(), "Can't overwrite the existing peer") {
 				glog.Errorf("Failed to add node %s as peer due to %s", nodeIP.String(), err)
+			} else {
+				glog.V(3).Infof("Not adding an already known iBGP neighbour %v", n)
 			}
 		}
 	}
@@ -185,6 +192,7 @@ func (nrc *NetworkRoutingController) syncInternalPeers() {
 				PeerAs:          nrc.defaultNodeAsnNumber,
 			},
 		}
+		glog.V(3).Infof("Removing an iBGP neighbor gone: %v", n)
 		if err := nrc.bgpServer.DeleteNeighbor(n); err != nil {
 			glog.Errorf("Failed to remove node %s as peer due to %s", ip, err)
 		}
