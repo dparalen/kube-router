@@ -63,6 +63,7 @@ func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPList
 		return nil, err
 	}
 
+	log.Infof("listening on %v, %v", addr, proto)
 	l, err := net.ListenTCP(proto, addr)
 	if err != nil {
 		return nil, err
@@ -88,6 +89,7 @@ func NewTCPListener(address string, port uint32, ch chan *net.TCPConn) (*TCPList
 				}).Warn("Failed to AcceptTCP")
 				return err
 			}
+			log.Infof("Accepted connection %v", conn)
 			ch <- conn
 		}
 	}()
@@ -198,7 +200,7 @@ func (server *BgpServer) Serve() {
 		if e.Version != peer.fsm.version {
 			log.WithFields(log.Fields{
 				"Topic": "Peer",
-			}).Debug("FSM version inconsistent")
+			}).Info("FSM version inconsistent")
 			return
 		}
 		server.handleFSMMessage(peer, e)
@@ -216,7 +218,7 @@ func (server *BgpServer) Serve() {
 						"Topic":       "Peer",
 						"Remote Addr": remoteAddr,
 						"Admin State": peer.fsm.adminState,
-					}).Debug("New connection for non admin-state-up peer")
+					}).Infof("New connection for non admin-state-up peer")
 					conn.Close()
 					return
 				}
@@ -250,12 +252,12 @@ func (server *BgpServer) Serve() {
 
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
-				}).Debugf("Accepted a new passive connection from:%s", remoteAddr)
+				}).Infof("Accepted a new passive connection from:%s", remoteAddr)
 				peer.PassConn(conn)
 			} else if pg := server.matchLongestDynamicNeighborPrefix(remoteAddr); pg != nil {
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
-				}).Debugf("Accepted a new dynamic neighbor from:%s", remoteAddr)
+				}).Infof("Accepted a new dynamic neighbor from:%s", remoteAddr)
 				rib := server.globalRib
 				if pg.Conf.RouteServer.Config.RouteServerClient {
 					rib = server.rsRib
@@ -382,7 +384,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 				"Topic": "Peer",
 				"Key":   peer.ID(),
 				"Data":  path,
-			}).Debug("Filtered by Route Target Constraint, ignore")
+			}).Info("Filtered by Route Target Constraint, ignore")
 			return nil
 		}
 	}
@@ -406,7 +408,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 					"Key":          peer.ID(),
 					"OriginatorID": id,
 					"Data":         path,
-				}).Debug("Originator ID is mine, ignore")
+				}).Info("Originator ID is mine, ignore")
 				return nil
 			}
 			if info.RouteReflectorClient {
@@ -423,7 +425,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 							"Key":       peer.ID(),
 							"ClusterID": clusterID,
 							"Data":      path,
-						}).Debug("cluster list path attribute has local cluster id, ignore")
+						}).Info("cluster list path attribute has local cluster id, ignore")
 						return nil
 					}
 				}
@@ -450,7 +452,7 @@ func filterpath(peer *Peer, path, old *table.Path) *table.Path {
 				"Topic": "Peer",
 				"Key":   peer.ID(),
 				"Data":  path,
-			}).Debug("From same AS, ignore.")
+			}).Info("From same AS, ignore.")
 			return nil
 		}
 	}
@@ -476,7 +478,7 @@ func (s *BgpServer) filterpath(peer *Peer, path, old *table.Path) *table.Path {
 				"Topic": "Peer",
 				"Key":   peer.fsm.pConf.State.NeighborAddress,
 				"Path":  path,
-			}).Debug("given rtm nlri is already sent, skipping to advertise")
+			}).Info("given rtm nlri is already sent, skipping to advertise")
 			return nil
 		}
 
@@ -813,7 +815,7 @@ func (s *BgpServer) processOutgoingPaths(peer *Peer, paths, olds []*table.Path) 
 		log.WithFields(log.Fields{
 			"Topic": "Peer",
 			"Key":   peer.fsm.pConf.State.NeighborAddress,
-		}).Debug("now syncing, suppress sending updates")
+		}).Info("now syncing, suppress sending updates")
 		return nil
 	}
 
@@ -1108,7 +1110,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 							"Topic":  "Peer",
 							"Key":    peer.ID(),
 							"Family": family,
-						}).Debugf("start LLGR restart timer (%d sec) for %s", t, family)
+						}).Infof("start LLGR restart timer (%d sec) for %s", t, family)
 
 						select {
 						case <-timer.C:
@@ -1117,7 +1119,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 									"Topic":  "Peer",
 									"Key":    peer.ID(),
 									"Family": family,
-								}).Debugf("LLGR restart timer (%d sec) for %s expired", t, family)
+								}).Infof("LLGR restart timer (%d sec) for %s expired", t, family)
 								peer.DropAll([]bgp.RouteFamily{family})
 								server.dropPeerAllRoutes(peer, []bgp.RouteFamily{family})
 
@@ -1132,7 +1134,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 								"Topic":  "Peer",
 								"Key":    peer.ID(),
 								"Family": family,
-							}).Debugf("stop LLGR restart timer (%d sec) for %s", t, family)
+							}).Infof("stop LLGR restart timer (%d sec) for %s", t, family)
 						}
 					}(f, endCh)
 				}
@@ -1228,7 +1230,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
 						"Key":   peer.ID(),
-					}).Debugf("Now syncing, suppress sending updates. start deferral timer(%d)", deferral)
+					}).Infof("Now syncing, suppress sending updates. start deferral timer(%d)", deferral)
 					time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.RouteFamily(0)))
 				}
 			}
@@ -1343,7 +1345,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 						log.WithFields(log.Fields{
 							"Topic": "Peer",
 							"Key":   peer.fsm.pConf.State.NeighborAddress,
-						}).Debugf("withdraw %d stale routes", len(pathList))
+						}).Infof("withdraw %d stale routes", len(pathList))
 						server.propagateUpdate(peer, pathList)
 					}
 
@@ -1357,7 +1359,7 @@ func (server *BgpServer) handleFSMMessage(peer *Peer, e *FsmMsg) {
 					log.WithFields(log.Fields{
 						"Topic": "Peer",
 						"Key":   peer.ID(),
-					}).Debug("received route-target eor. flash non-route-target NLRIs")
+					}).Info("received route-target eor. flash non-route-target NLRIs")
 					families := make([]bgp.RouteFamily, 0, len(peer.negotiatedRFList()))
 					for _, f := range peer.negotiatedRFList() {
 						if f != bgp.RF_RTC_UC {
@@ -1829,13 +1831,13 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 					"Topic":    "Peer",
 					"Key":      peer.ID(),
 					"Families": families,
-				}).Debug("deferral timer expired")
+				}).Info("deferral timer expired")
 			} else if c := peer.fsm.pConf.GetAfiSafi(bgp.RF_RTC_UC); y && !c.MpGracefulRestart.State.EndOfRibReceived {
 				log.WithFields(log.Fields{
 					"Topic":    "Peer",
 					"Key":      peer.ID(),
 					"Families": families,
-				}).Debug("route-target deferral timer expired")
+				}).Info("route-target deferral timer expired")
 			} else {
 				continue
 			}
@@ -2073,7 +2075,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 	if _, y := server.neighborMap[addr]; y {
 		return fmt.Errorf("Can't overwrite the existing peer: %s", addr)
 	}
-
+	log.Infof("Adding peer %v", addr)
 	var pgConf *config.PeerGroup
 	if c.Config.PeerGroup != "" {
 		pg, ok := server.peerGroupMap[c.Config.PeerGroup]
@@ -2087,6 +2089,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 		return err
 	}
 
+	log.Infof("Peer %v using group conf: %v", addr, pgConf)
 	if vrf := c.Config.Vrf; vrf != "" {
 		if c.RouteServer.Config.RouteServerClient {
 			return fmt.Errorf("route server client can't be enslaved to VRF")
@@ -2135,6 +2138,7 @@ func (server *BgpServer) addNeighbor(c *config.Neighbor) error {
 	}
 	peer.startFSMHandler(server.fsmincomingCh, server.fsmStateCh)
 	server.broadcastPeerState(peer, bgp.BGP_FSM_IDLE, nil)
+	log.Infof("Successfully added peer neighbor %v", peer)
 	return nil
 }
 
@@ -2429,7 +2433,7 @@ func (s *BgpServer) setAdminState(addr, communication string, enable bool) error
 				log.WithFields(log.Fields{
 					"Topic": "Peer",
 					"Key":   peer.fsm.pConf.State.NeighborAddress,
-				}).Debug(message)
+				}).Info(message)
 			default:
 				log.Warning("previous request is still remaining. : ", peer.fsm.pConf.State.NeighborAddress)
 			}
