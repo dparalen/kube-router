@@ -18,6 +18,7 @@ package server
 
 import (
 	"fmt"
+    log "github.com/sirupsen/logrus"
 	"net"
 	"os"
 	"syscall"
@@ -253,13 +254,13 @@ func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 	event.Events = syscall.EPOLLIN | syscall.EPOLLOUT | syscall.EPOLLPRI
 	event.Fd = int32(fd)
 	if e = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, fd, &event); e != nil {
-		return nil, e
+		return nil, os.NewSyscallError("EpollCtl", e)
 	}
 
 	for {
 		nevents, e := syscall.EpollWait(epfd, events, int(d.Timeout/1000000) /*msec*/)
 		if e != nil {
-			return nil, e
+			return nil, os.NewSyscallError("EpollWait", e)
 		}
 		if nevents == 0 {
 			return nil, fmt.Errorf("timeout")
@@ -276,6 +277,7 @@ func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 				return nil, os.NewSyscallError("getsockopt", err)
 			}
 		} else {
+            log.Errorf("expected etiher 0 or 1 event on the fd %v got %v events instead", int32(fd), events)
 			return nil, fmt.Errorf("unexpected epoll behavior")
 		}
 	}
