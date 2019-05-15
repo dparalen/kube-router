@@ -18,6 +18,7 @@ package server
 
 import (
 	"fmt"
+    log "github.com/sirupsen/logrus"
 	"net"
 	"os"
 	"syscall"
@@ -276,6 +277,7 @@ func (d *TCPDialer) DialTCP(addr string, port int) (*net.TCPConn, error) {
 				return nil, os.NewSyscallError("getsockopt", err)
 			}
 		} else {
+            log.Errorf("expected etiher 0 or 1 event on the fd %v got %v events instead", int32(fd), events)
 			return nil, fmt.Errorf("unexpected epoll behavior")
 		}
 	}
